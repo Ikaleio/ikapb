@@ -12,6 +12,7 @@ bun dev
 ### Environment variables
 
 - `VITE_PAINTBOARD_BASE_URL` (optional): default backend base URL shown in the UI
+- `NEXT_PUBLIC_PAINTBOARD_BASE_URL` is the fallback for deployments configured before the Vite migration.
 
 ## Build / Preview
 

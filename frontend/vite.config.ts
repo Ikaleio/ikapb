@@ -4,6 +4,7 @@ import path from 'node:path'
 
 export default defineConfig({
   plugins: [react()],
+  envPrefix: ['VITE_', 'NEXT_PUBLIC_PAINTBOARD_BASE_URL'],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.')
