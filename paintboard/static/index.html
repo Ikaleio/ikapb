@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html class="no-js" lang="zh-CN">
+	<head>
+		<meta charset="utf-8" />
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+		/>
+		<title>ikapb FE</title>
+		<link
+			rel="stylesheet"
+			href="https://cdn.jsdelivr.net/npm/amazeui@2.7.2/dist/css/amazeui.min.css"
+		/>
+		<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/jquery-ui-dist@1.13.2/jquery-ui.min.js"></script>
+		<script src="vendor/zstd/zstd-codec-binding-wasm.js"></script>
+		<script src="vendor/zstd/zstd-codec-browser.js"></script>
+		<style>
+			.about {
+				background: #fff;
+				padding: 40px 0;
+				color: #7f8c8d;
+			}
+
+			.about-color {
+				color: #34495e;
+			}
+
+			.about-title {
+				font-size: 180%;
+				padding: 30px 0 50px 0;
+				text-align: center;
+			}
+
+			.footer p {
+				color: #7f8c8d;
+				margin: 0;
+				padding: 15px 0;
+				text-align: center;
+				background: #2d3e50;
+			}
+
+			#palette {
+				padding: 10px;
+				background: #7f7f7f;
+				margin: 10px;
+				width: auto;
+				color: #fff;
+			}
+
+			.selected {
+				border: #daa520 3px solid;
+			}
+
+			#canvas-box {
+				width: calc(1000px + 30px);
+				height: calc(600px + 30px);
+				overflow: auto;
+			}
+		</style>
+	</head>
+
+	<body>
+		<header class="am-topbar am-topbar-fixed-top">
+			<div class="am-container">
+				<h1 class="am-topbar-brand">
+					<a href="#">ikapb 内置前端</a>
+				</h1>
+				<button
+					class="am-topbar-btn am-topbar-toggle am-btn am-btn-sm am-btn-secondary am-show-sm-only"
+					data-am-collapse="{target: '#collapse-head'}"
+				>
+					<span class="am-sr-only">导航切换</span>
+					<span class="am-icon-bars"></span>
+				</button>
+				<div class="am-collapse am-topbar-collapse" id="collapse-head">
+					<ul class="am-nav am-nav-pills am-topbar-nav"></ul>
+				</div>
+			</div>
+		</header>
+		<div class="about">
+			<div class="am-g am-container">
+				<div class="am-u-lg-12">
+					<h2 id="title" class="about-title about-color">Loading...</h2>
+					<div class="am-g">
+						<div class="am-u-lg-11" id="canvas-box">
+							<canvas width="5000" height="3000" id="mycanvas"></canvas>
+						</div>
+						<div class="am-u-lg-7" id="palette">
+							<span>选色</span><input type="color" id="select-color" />
+						</div>
+						<div class="am-u-lg-5" id="zoom-tool">
+							<button
+								type="button"
+								class="am-btn am-btn-primary am-radius"
+								data-zoom="1"
+							>
+								全部显示
+							</button>
+							<button
+								type="button"
+								class="am-btn am-btn-secondary am-radius"
+								data-zoom="5"
+							>
+								放大5x
+							</button>
+							<button
+								type="button"
+								class="am-btn am-btn-success am-radius"
+								data-zoom="10"
+							>
+								放大10x
+							</button>
+							<p>
+								当前坐标: (<span id="current-x">0</span>,
+								<span id="current-y">0</span>)
+							</p>
+							<div style="display: inline-flex; margin: 1em 0; width: 100%">
+								<input
+									type="number"
+									style="
+										height: 37.1593px;
+										font-family: monospace;
+										flex: 1;
+										font-size: 0.875em;
+									"
+									placeholder="UID"
+									id="uid"
+								/>
+								&nbsp;&nbsp;<input
+									type="text"
+									style="
+										height: 37.1593px;
+										font-family: monospace;
+										flex: 1;
+										font-size: 0.875em;
+									"
+									placeholder="AccessKey"
+									id="access-key"
+								/>
+								&nbsp;&nbsp;<input
+									type="text"
+									style="font-family: monospace; flex: 1; font-size: 0.875em"
+									placeholder="PaintKey"
+									id="token"
+								/>
+								<button
+									type="button"
+									class="am-btn am-btn-danger am-radius"
+									id="reset-token"
+								>
+									更新Token
+								</button>
+							</div>
+							<p>
+								还剩
+								<span id="timeleft" class="am-badge am-badge-secondary"></span>
+							</p>
+						</div>
+						<div class="am-u-lg-12">
+							<p>
+								本绘板由
+								<a href="https://github.com/Ikaleio/ikapb" target="_blank"
+									>ikapb</a
+								>
+								提供后端支持。
+							</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<script>
+			const H = 600
+			const W = 1000
+			let scale = 5
+			let dragged = 0
+			let lasttime = 0
+			const timelimit = 1 / 1000
+			const activityStartTime = 0
+			const activityEndTime = 1738252800
+			let nowintevel = 0
+			let nowColor = '#000000'
+			let nowX = 0
+			let nowY = 0
+			let cursorX = 0
+			let cursorY = 0
+
+			const boardState = Array.from({ length: H }, () =>
+				Array.from({ length: W }, () => '#aaaaaa')
+			)
+
+			const canvas = document.getElementById('mycanvas')
+			const ctx = canvas.getContext('2d')
+
+			function resizeCanvas(newScale) {
+				scale = newScale
+				canvas.width = W * scale
+				canvas.height = H * scale
+				renderBoard()
+			}
+
+			function drawPixel(x, y, color) {
+				ctx.fillStyle = color
+				ctx.fillRect(x * scale, y * scale, scale, scale)
+			}
+
+			function renderBoard() {
+				for (let y = 0; y < H; y++) {
+					for (let x = 0; x < W; x++) {
+						drawPixel(x, y, boardState[y][x])
+					}
+				}
+				drawPixel(cursorX, cursorY, nowColor)
+			}
+
+			function applyPixel(y, x, color, skipState = false) {
+				if (dragged) {
+					dragged = 0
+					return
+				}
+				if (!skipState) {
+					boardState[y][x] = color
+				}
+				drawPixel(x, y, color)
+			}
+
+			function highlightCursor(x, y) {
+				if (x === cursorX && y === cursorY) {
+					return
+				}
+				drawPixel(cursorX, cursorY, boardState[cursorY][cursorX])
+				cursorX = x
+				cursorY = y
+				drawPixel(cursorX, cursorY, nowColor)
+			}
+
+			resizeCanvas(scale)
+			renderBoard()
+
+			$(document).on('change', '#select-color', evt => {
+				nowColor = evt.currentTarget.value
+				drawPixel(cursorX, cursorY, nowColor)
+			})
+
+			$('[data-zoom]').on('click', function () {
+				const targetScale = Number($(this).data('zoom'))
+				resizeCanvas(targetScale)
+				if (scale !== 1) {
+					$('#mycanvas').css('top', -nowY * scale + H / 2)
+					$('#mycanvas').css('left', -nowX * scale + W / 2)
+				} else {
+					$('#mycanvas').css({ top: 0, left: 0 })
+				}
+			})
+
+			const wsBaseUrl =
+				(location.protocol === 'https:' ? 'wss://' : 'ws://') +
+				location.host +
+				'/api/paintboard/ws'
+			let ws = null
+			let paintId = 0
+			const paintCb = new Map()
+			let zstdNamespace = null
+			let zstdStreaming = null
+			let zstdDict = null
+			let zstdDictId = null
+			let zstdEnabled = false
+			const pendingCompressedTicks = new Map()
+
+			function connectWs() {
+				const url = zstdEnabled ? `${wsBaseUrl}?enc=zstd` : wsBaseUrl
+				ws = new WebSocket(url)
+				ws.binaryType = 'arraybuffer'
+
+				ws.onopen = function () {
+					pendingCompressedTicks.clear()
+					initialPaint()
+				}
+
+				ws.onerror = function (event) {
+					console.error(event)
+				}
+
+				ws.onmessage = function (event) {
+					const buffer = event.data
+					const dataView = new DataView(buffer)
+					let offset = 0
+
+					while (offset < buffer.byteLength) {
+						const type = dataView.getUint8(offset++)
+
+						switch (type) {
+							case 0xfa: {
+								const x = dataView.getUint16(offset, true)
+								const y = dataView.getUint16(offset + 2, true)
+								const r = dataView.getUint8(offset + 4)
+								const g = dataView.getUint8(offset + 5)
+								const b = dataView.getUint8(offset + 6)
+								offset += 7
+
+								const color =
+									'#' +
+									r.toString(16).padStart(2, '0') +
+									g.toString(16).padStart(2, '0') +
+									b.toString(16).padStart(2, '0')
+								boardState[y][x] = color
+								drawPixel(x, y, color)
+								break
+							}
+							case 0xfc:
+								ws.send(new Uint8Array([0xfb]))
+								break
+							case 0xff: {
+								const id = dataView.getUint32(offset, true)
+								const code = dataView.getUint8(offset + 4)
+								offset += 5
+
+								const cb = paintCb.get(id)
+								if (cb) {
+									cb(code)
+									paintCb.delete(id)
+								}
+								break
+							}
+							case 0xf6: {
+								if (!zstdEnabled || !zstdNamespace) {
+									offset = buffer.byteLength
+									break
+								}
+								const dictId = dataView.getUint32(offset, true)
+								const dictLen = dataView.getUint32(offset + 4, true)
+								offset += 8
+								if (offset + dictLen > buffer.byteLength) {
+									offset = buffer.byteLength
+									break
+								}
+								const dictBytes = new Uint8Array(
+									buffer,
+									offset,
+									dictLen
+								).slice()
+								offset += dictLen
+
+								if (zstdDict && typeof zstdDict.close === 'function') {
+									zstdDict.close()
+								}
+								zstdDict = new zstdNamespace.Dict.Decompression(dictBytes)
+								zstdDictId = dictId
+								pendingCompressedTicks.clear()
+								break
+							}
+							case 0xf7: {
+								if (!zstdEnabled || !zstdStreaming) {
+									offset = buffer.byteLength
+									break
+								}
+								// tick is u64 little-endian (server uses u64 for tick index)
+								// header layout after opcode: tick(u64,8) + part_idx(u16,2) + part_total(u16,2) + raw_len(u32,4) + flags(u8,1)
+								// total header bytes after opcode = 17; including opcode = 18
+								const tick = dataView.getBigUint64(offset, true)
+								const partIdx = dataView.getUint16(offset + 8, true)
+								const partTotal = dataView.getUint16(offset + 10, true)
+								const rawLen = dataView.getUint32(offset + 12, true)
+								const flags = dataView.getUint8(offset + 16)
+								offset += 17
+
+								const payload = new Uint8Array(
+									buffer,
+									offset,
+									buffer.byteLength - offset
+								)
+								offset = buffer.byteLength
+								handleCompressedFrame(
+									tick,
+									partIdx,
+									partTotal,
+									rawLen,
+									flags,
+									payload
+								)
+								break
+							}
+							default:
+								offset = buffer.byteLength
+								break
+						}
+					}
+				}
+			}
+
+			function processRawTickBytes(bytes) {
+				if (!bytes || bytes.length === 0) {
+					return
+				}
+				let idx = 0
+				while (idx < bytes.length) {
+					const opcode = bytes[idx++]
+					if (opcode !== 0xfa) {
+						break
+					}
+					if (idx + 6 > bytes.length) {
+						break
+					}
+					const x = bytes[idx] | (bytes[idx + 1] << 8)
+					const y = bytes[idx + 2] | (bytes[idx + 3] << 8)
+					const r = bytes[idx + 4]
+					const g = bytes[idx + 5]
+					const b = bytes[idx + 6]
+					idx += 7
+
+					if (x < W && y < H) {
+						const color =
+							'#' +
+							r.toString(16).padStart(2, '0') +
+							g.toString(16).padStart(2, '0') +
+							b.toString(16).padStart(2, '0')
+						boardState[y][x] = color
+						drawPixel(x, y, color)
+					}
+				}
+			}
+
+			function handleCompressedFrame(
+				tick,
+				partIdx,
+				partTotal,
+				rawLen,
+				flags,
+				payload
+			) {
+				if (!payload || payload.length === 0) {
+					return
+				}
+				let chunk = null
+				const input = payload.slice()
+				try {
+					if (zstdDict) {
+						chunk = zstdStreaming.decompressUsingDict(input, rawLen, zstdDict)
+					}
+					if (!chunk) {
+						chunk = zstdStreaming.decompress(input, rawLen)
+					}
+				} catch (error) {
+					console.error('failed to decompress tick frame', error)
+					return
+				}
+
+				if (!chunk) {
+					console.warn('zstd decompression returned empty chunk')
+					return
+				}
+
+				if (partTotal <= 1) {
+					processRawTickBytes(chunk)
+					return
+				}
+
+				let entry = pendingCompressedTicks.get(tick)
+				if (!entry || entry.total !== partTotal) {
+					entry = {
+						total: partTotal,
+						parts: new Array(partTotal).fill(null)
+					}
+					pendingCompressedTicks.set(tick, entry)
+				}
+				if (partIdx < entry.parts.length) {
+					entry.parts[partIdx] = chunk
+				}
+
+				if (entry.parts.every(Boolean)) {
+					let totalLength = 0
+					for (const part of entry.parts) {
+						totalLength += part.length
+					}
+					const merged = new Uint8Array(totalLength)
+					let offset = 0
+					for (const part of entry.parts) {
+						merged.set(part, offset)
+						offset += part.length
+					}
+					pendingCompressedTicks.delete(tick)
+					processRawTickBytes(merged)
+				}
+			}
+
+			function sendPaint() {
+				const uidInput = document.getElementById('uid').value
+				const tokenInput = document.getElementById('token').value
+
+				if (!uidInput || !tokenInput) {
+					alert('请填写令牌信息')
+					return
+				}
+
+				if (new Date() < (lasttime + timelimit) * 1000) {
+					alert('冷却时间未到，暂时不能涂色')
+					return
+				}
+
+				if (!tokenInput.match(/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i)) {
+					alert('Token格式错误')
+					return
+				}
+
+				const uid = parseInt(uidInput, 10)
+
+				localStorage.setItem('token', tokenInput)
+				localStorage.setItem('uid', uid.toString())
+
+				const r = parseInt(nowColor.slice(1, 3), 16)
+				const g = parseInt(nowColor.slice(3, 5), 16)
+				const b = parseInt(nowColor.slice(5, 7), 16)
+
+				const id = paintId++ >>> 0
+				const tokenBytes = new Uint8Array(16)
+				tokenInput
+					.replace(/-/g, '')
+					.match(/.{2}/g)
+					.map((byte, i) => (tokenBytes[i] = parseInt(byte, 16)))
+
+				const paintData = new Uint8Array([
+					0xfe,
+					nowX & 255,
+					(nowX >> 8) & 255,
+					nowY & 255,
+					(nowY >> 8) & 255,
+					r,
+					g,
+					b,
+					uid & 255,
+					(uid >> 8) & 255,
+					(uid >> 16) & 255,
+					...tokenBytes,
+					id & 255,
+					(id >> 8) & 255,
+					(id >> 16) & 255,
+					(id >> 24) & 255
+				])
+
+				ws.send(paintData)
+
+				paintCb.set(id, code => {
+					switch (code) {
+						case 0xef:
+							lasttime = new Date() / 1000
+							getCountDown(lasttime + timelimit)
+							break
+						case 0xee:
+							alert('Token 正在冷却')
+							break
+						case 0xed:
+							alert('Token 无效')
+							break
+						case 0xec:
+							alert('请求格式错误')
+							break
+						case 0xeb:
+							alert('无权限')
+							break
+						case 0xea:
+							alert('服务器错误')
+							break
+					}
+				})
+			}
+
+			$('#mycanvas').on('click', sendPaint)
+
+			$('#mycanvas').on('mousemove', function (event) {
+				const x = Math.min(Math.max((event.offsetX / scale) | 0, 0), W - 1)
+				const y = Math.min(Math.max((event.offsetY / scale) | 0, 0), H - 1)
+
+				document.getElementById('current-x').textContent = x
+				document.getElementById('current-y').textContent = y
+
+				nowX = x
+				nowY = y
+				highlightCursor(x, y)
+			})
+
+			$('#reset-token').on('click', function () {
+				const uidInput = document.getElementById('uid').value
+				const accessKey = document.getElementById('access-key').value
+				const uidNumber = parseInt(uidInput, 10)
+				if (Number.isNaN(uidNumber)) {
+					alert('请输入有效的 UID')
+					return
+				}
+				$.ajax({
+					type: 'POST',
+					url: '/api/auth/gettoken',
+					data: JSON.stringify({
+						uid: uidNumber,
+						access_key: accessKey
+					}),
+					contentType: 'application/json',
+					success: resp => {
+						if (resp && resp.data) {
+							if (resp.data.token) {
+								document.getElementById('token').value = resp.data.token
+								localStorage.setItem('token', resp.data.token)
+								localStorage.setItem('uid', uidNumber.toString())
+								alert('Token 获取成功')
+							} else if (resp.data.error) {
+								alert('获取 Token 失败: ' + resp.data.error)
+							} else {
+								alert('获取 Token 失败')
+							}
+						} else {
+							alert('获取 Token 失败')
+						}
+					},
+					error: () => {
+						alert('获取 Token 失败')
+					}
+				})
+			})
+
+			$('#mycanvas').draggable({
+				cursor: 'move',
+				stop: function () {
+					dragged = 1
+				}
+			})
+
+			$('#mycanvas').on('mousewheel', function (event) {
+				const delta = event.originalEvent.deltaY
+				const y = Math.floor(event.offsetY / scale)
+				const x = Math.floor(event.offsetX / scale)
+				if (delta > 0) {
+					if (scale === 10) {
+						resizeCanvas(5)
+					} else if (scale === 5) {
+						resizeCanvas(1)
+					}
+				} else {
+					if (scale === 1) {
+						resizeCanvas(5)
+					} else if (scale === 5) {
+						resizeCanvas(10)
+					}
+				}
+				if (scale !== 1) {
+					$('#mycanvas').css('top', -y * scale + H / 2)
+					$('#mycanvas').css('left', -x * scale + W / 2)
+				}
+				return false
+			})
+
+			function getCountDown(timestamp) {
+				clearInterval(nowintevel)
+				nowintevel = setInterval(function () {
+					const nowTime = new Date()
+					const endTime = new Date(timestamp * 1000)
+					const t = endTime.getTime() - nowTime.getTime()
+					if (t < 0) {
+						$('#timeleft').html('冷却时间到')
+						clearInterval(nowintevel)
+						return
+					}
+					const hour = Math.floor((t / 1000 / 60 / 60) % 24)
+						.toString()
+						.padStart(2, '0')
+					const min = Math.floor((t / 1000 / 60) % 60)
+						.toString()
+						.padStart(2, '0')
+					const sec = Math.floor((t / 1000) % 60)
+						.toString()
+						.padStart(2, '0')
+					$('#timeleft').html(`${hour}:${min}:${sec}`)
+				}, 1000)
+			}
+
+			function getDateTime(timestamp, isRangeEnd) {
+				const d = new Date(timestamp * 1000)
+				let is2400 = false
+				if (isRangeEnd && d.getHours() === 0 && d.getMinutes() === 0) {
+					d.setHours(-24)
+					is2400 = true
+				}
+				let s = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(
+					2,
+					'0'
+				)}/${String(d.getDate()).padStart(2, '0')} `
+				s += is2400
+					? '24:00'
+					: `${String(d.getHours()).padStart(2, '0')}:${String(
+							d.getMinutes()
+					  ).padStart(2, '0')}`
+				return s
+			}
+
+			function getFormattedTime(timestamp) {
+				let str = ''
+				const d = Math.floor(timestamp / 86400)
+				if (d !== 0 || str.length > 0) str += d + '天'
+				const h = Math.floor(timestamp / 3600) % 24
+				if (h !== 0 || str.length > 0) str += String(h).padStart(2, '0') + '时'
+				const m = Math.floor(timestamp / 60) % 60
+				if (m !== 0 || str.length > 0) str += String(m).padStart(2, '0') + '分'
+				const s = Math.floor(timestamp) % 60
+				str += String(s).padStart(2, '0') + '秒'
+				return str
+			}
+
+			getCountDown(lasttime + timelimit)
+
+			function initialPaint() {
+				const oReq = new XMLHttpRequest()
+				oReq.open('GET', '/api/paintboard/getboard')
+				oReq.responseType = 'arraybuffer'
+				oReq.onload = function () {
+					const arrayBuffer = oReq.response
+					if (arrayBuffer) {
+						const byteArray = new Uint8Array(arrayBuffer)
+						for (let y = 0; y < H; y++) {
+							for (let x = 0; x < W; x++) {
+								const idx = (y * W + x) * 3
+								const color =
+									'#' +
+									byteArray[idx].toString(16).padStart(2, '0') +
+									byteArray[idx + 1].toString(16).padStart(2, '0') +
+									byteArray[idx + 2].toString(16).padStart(2, '0')
+								boardState[y][x] = color
+								drawPixel(x, y, color)
+							}
+						}
+					}
+					$('#title').text('Paintboard')
+				}
+				oReq.send()
+			}
+
+			if (window.ZstdCodecBrowser) {
+				window.ZstdCodecBrowser.ensureReady()
+					.then(instance => {
+						zstdNamespace = instance
+						zstdStreaming = new zstdNamespace.Streaming()
+						zstdEnabled = true
+					})
+					.catch(err => {
+						console.warn('zstd 初始化失败，使用非压缩通道', err)
+						zstdEnabled = false
+					})
+					.finally(() => {
+						connectWs()
+					})
+			} else {
+				connectWs()
+			}
+
+			;(function () {
+				$('#activity-time-start').html(getDateTime(activityStartTime, false))
+				$('#activity-time-end').html(getDateTime(activityEndTime, true))
+				const $$ = $('#activity-reminder')
+				const clock = setInterval(function () {
+					const time = Math.floor(new Date().getTime() / 1000)
+					if (time <= activityStartTime) {
+						$$.html(
+							'(' + getFormattedTime(activityStartTime - time) + '后开始)'
+						)
+					} else if (time <= activityEndTime) {
+						$$.html('(' + getFormattedTime(activityEndTime - time) + '后结束)')
+					} else {
+						$$.html('(活动已结束)')
+					}
+				}, 1000)
+				document.getElementById('token').value =
+					localStorage.getItem('token') || ''
+				document.getElementById('uid').value = localStorage.getItem('uid') || ''
+			})()
+		</script>
+	</body>
+</html>

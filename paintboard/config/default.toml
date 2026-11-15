@@ -1,0 +1,107 @@
+#############################
+# Paintboard configuration
+# See spec/config.spec.md for parameter semantics.
+#############################
+
+# HTTP/WebSocket bind address (host:port)
+bind_address = "0.0.0.0:8775"
+
+# Ticks per second.
+# Larger values reduce average commit latency but increase CPU usage.
+tps = 128
+
+# Skip Access-Key verification (development only)
+no_access_key_verify = false
+
+# Default board background color (hex RGB)
+background_color = "#AAAAAA"
+
+# Data storage root directory
+data_dir = "data"
+
+# Path to the token SQLite database file
+sqlite_path = "data/tokens.db"
+
+# Admin management key and upload limits
+admin_manage_key = ""
+admin_max_blob_bytes = 5242880
+
+
+# ===== Network and connection =====
+[network]
+# Trusted reverse proxy IPs used to resolve the real client address.
+# An empty list means no proxy is trusted (default).
+trusted_proxies = []
+
+# Max WebSocket connections per client IP.
+# 0 or commented out means no limit. When the limit is exceeded, new upgrades
+# are rejected with HTTP 429 and no WebSocket is established.
+# max_connections_per_ip = 10
+
+
+# ===== WebSocket performance =====
+[websocket]
+# Outbound batching period (ms).
+# Smaller values reduce broadcast latency but increase the number of sends.
+ws_send_period_ms = 20
+
+# Hard cap for the ACK buffer (bytes).
+# Exceeding this will force-close the connection.
+max_ack_buffer_bytes = 209715200
+
+# Maximum allowed client latency (ms).
+# If the first unflushed ACK is not sent within this window, the connection is closed.
+# 0 means no limit.
+max_client_latency_ms = 3000
+
+
+# ===== Persistence =====
+[persistence]
+# Persist board data (snapshots + optional WAL).
+# When disabled, data stays in memory only.
+persist_board = false
+
+# Snapshot interval (seconds)
+snapshot_interval_sec = 10
+
+# Number of snapshots to retain (oldest are pruned first)
+snapshot_retain = 8
+
+# Append frozen writes to WAL every N ticks.
+# 0 disables WAL.
+wal_flush_every_ticks = 8
+
+
+# ===== Token cooldown =====
+[token]
+# Global default cooldown (ms).
+# Used when a token has cooldown_ms = -1. 0 means no cooldown.
+global_cooldown_ms = 0
+
+# Interval to flush cooldown state to SQLite (ms, deprecated).
+# Cooldown state is only written on graceful shutdown.
+cooldown_flush_interval_ms = 0
+
+
+# ===== Zstd compression =====
+[zstd]
+# Compression level (0 = adaptive; 1-8 is a common trade-off range).
+zstd_level = 5
+
+# Dictionary file path (a new dictionary may be written here on shutdown when sampling is enabled)
+zstd_dictionary_path = "data/zstd-dict.bin"
+
+# Max bytes for a trained dictionary
+zstd_dictionary_max_bytes = 65536
+
+# Enable broadcast sample collection and dictionary training
+zstd_sampling_enabled = false
+
+# Sample output directory (when empty, defaults to data_dir/zstd-samples)
+zstd_sampling_dir = "data/zstd-samples"
+
+# Sample every N ticks (1 = every tick)
+zstd_sampling_tick_interval = 1
+
+# Max number of samples to retain (new samples are dropped after reaching the cap)
+zstd_sampling_max_samples = 1024

@@ -1,0 +1,38 @@
+[package]
+name = "paintboard"
+version = "1.3.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+bytes = "1"
+config = "0.13"
+dashmap = "5"
+futures-util = "0.3"
+parking_lot = "0.12"
+prometheus = "0.13"
+serde = { version = "1", features = ["derive"] }
+thiserror = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time", "fs", "signal"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+rusqlite = { version = "0.30", features = ["bundled", "chrono"] }
+zstd = { version = "0.12", features = ["zdict_builder"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+once_cell = "1"
+axum = { version = "0.7", features = ["ws"] }
+serde_json = "1"
+bytesize = "1"
+async-trait = "0.1"
+tower-http = { version = "0.4", features = ["trace"] }
+url = "2"
+rand = "0.8"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
+image = { version = "0.24", default-features = false, features = ["png", "jpeg", "webp"] }
+base64 = "0.22"
+
+[dev-dependencies]
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+tokio-tungstenite = { version = "0.28.0", features = ["url"] }
